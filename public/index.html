@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel del Creador - Galería Real</title>
+    <style>
+        body { margin: 0; padding: 0; font-family: sans-serif; background: #111; color: white; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        header { width: 100%; max-width: 800px; padding: 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
+        .contenedor-principal { width: 90%; max-width: 800px; margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .tarjeta { background: #1e1e1e; border-radius: 12px; padding: 25px; border: 1px solid #2a2a2a; }
+        h3 { margin-top: 0; color: #0070f3; }
+        .grupo-formulario { margin-bottom: 20px; display: flex; flex-direction: column; }
+        label { margin-bottom: 8px; font-size: 14px; color: #aaa; }
+        
+        /* Estilo para el botón de galería */
+        input[type="file"] { 
+            background: #2a2a2a; 
+            border: 1px dashed #555; 
+            border-radius: 6px; 
+            color: white; 
+            padding: 15px; 
+            font-size: 14px; 
+            outline: none; 
+            cursor: pointer;
+        }
+        input[type="number"] { background: #2a2a2a; border: 1px solid #444; border-radius: 6px; color: white; padding: 12px; font-size: 16px; outline: none; }
+        .btn-subir { background: #0070f3; color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; width: 100%; }
+        .btn-subir:disabled { background: #444; cursor: not-allowed; }
+        .lista-links { list-style: none; padding: 0; margin: 0; }
+        .item-link { background: #2a2a2a; padding: 12px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .url-texto { font-size: 12px; color: #00aaff; word-break: break-all; margin-right: 10px;}
+        .btn-copiar { background: #444; border: none; color: white; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2>📸 Panel de Creador (Galería)</h2>
+    </header>
+
+    <div class="contenedor-principal">
+        <div class="tarjeta">
+            <h3>Subir desde tu Galería</h3>
+            <form id="form-subir" onsubmit="generarLink(event)">
+                <div class="grupo-formulario">
+                    <label>Selecciona una foto de tu dispositivo:</label>
+                    <!-- CAMBIO: Ahora es un input de archivo para abrir la galería -->
+                    <input type="file" id="fotoArchivo" accept="image/*" required>
+                </div>
+                <div class="grupo-formulario">
+                    <label>Precio de venta (USD):</label>
+                    <input type="number" id="precio" min="0.50" step="0.01" value="5.00" required>
+                </div>
+                <button type="submit" id="btnEnviar" class="btn-subir">Subir Foto y Generar Link</button>
+            </form>
+        </div>
+
+        <div class="tarjeta">
+            <h3>Tus Links de Venta</h3>
+            <ul class="lista-links" id="contenedor-links"></ul>
+        </div>
+    </div>
+
+    <script>
+        async function generarLink(event) {
+            event.preventDefault();
+            
+            const btnEnviar = document.getElementById('btnEnviar');
+            const fileInput = document.getElementById('fotoArchivo');
+            const precio = document.getElementById('precio').value;
+            const contenedor = document.getElementById('contenedor-links');
+
+            if (fileInput.files.length === 0) {
+                alert("Por favor, selecciona una foto primero.");
+                return;
+            }
+
+            // Deshabilitar botón mientras sube
+            btnEnviar.disabled = true;
+            btnEnviar.innerText = "Subiendo archivo...";
+
+            const archivo = fileInput.files[0];
+            
+            // 1. Preparar la foto para enviarla a internet
+            const formData = new FormData();
+            formData.append("image", archivo);
+
+            try {
+                // Usamos la API gratuita de ImgBB para convertir tu foto en un link real
+                // Esta Key es de prueba. Lo ideal es que saques una gratis en pt.imgbb.com
+                const apiKey = "6299b9cf959247f07011fc04af4f6990"; 
+                
+                const subidaImgbb = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const resultadoImg = await subidaImgbb.json();
+
+                if (!resultadoImg.success) {
+                    throw new Error("No se pudo alojar la imagen en internet.");
+                }
+
+                // Este es el link público que generó internet para tu foto de la galería
+                const urlFotoInternet = resultadoImg.data.url;
+
+                // 2. Ahora enviamos ese link e información a tu servidor de Render
+                const respuestaServer = await fetch('https://proyecto-mt.onrender.com/api/subir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ precio: parseFloat(precio), urlFoto: urlFotoInternet })
+                });
+
+                const data = await respuestaServer.json();
+
+                if (data.success) {
+                    const urlCliente = `pantalla_bloqueo.html?id=${data.codigo}`;
+
+                    const nuevoLinkHtml = `
+                        <li class="item-link">
+                            <div>
+                                <div style="font-size: 11px; color: #888;">Precio: $${precio} USD</div>
+                                <a href="${urlCliente}" target="_blank" class="url-texto">${urlCliente}</a>
+                            </div>
+                            <button class="btn-copiar" onclick="navigator.clipboard.writeText(window.location.origin + '/' + '${urlCliente}'); alert('¡Link copiado!');">Copiar</button>
+                        </li>
+                    `;
+                    contenedor.insertAdjacentHTML('afterbegin', nuevoLinkHtml);
+                    document.getElementById('form-subir').reset();
+                } else {
+                    alert("Error en el servidor de Render al registrar el precio.");
+                }
+
+            } catch (error) {
+                console.error(error);
+                alert("Hubo un problema al subir la imagen. Verifica que tu servidor en Render esté encendido.");
+            } finally {
+                // Reestablecer botón
+                btnEnviar.disabled = false;
+                btnEnviar.innerText = "Subir Foto y Generar Link";
+            }
+        }
+    </script>
+</body>
+</html>

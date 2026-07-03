@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ver Foto Compartida</title>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: sans-serif; 
+            background: #111; 
+            color: white; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            min-height: 100vh; 
+        }
+        .contenedor-foto { 
+            background: #1e1e1e; 
+            border-radius: 12px; 
+            padding: 20px; 
+            border: 1px solid #2a2a2a; 
+            max-width: 90%; 
+            width: 500px; 
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        img { 
+            max-width: 100%; 
+            height: auto; 
+            border-radius: 8px; 
+            margin-top: 15px;
+            display: none; /* Se oculta hasta que cargue */
+        }
+        .precio {
+            font-size: 20px;
+            color: #00aaff;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .cargando {
+            color: #aaa;
+            font-style: italic;
+        }
+        .error {
+            color: #ff4444;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="contenedor-foto">
+        <h2 id="titulo">Visualizador de Foto</h2>
+        <p id="estado" class="cargando">Buscando la foto en el servidor...</p>
+        <div id="info-precio" class="precio" style="display: none;"></div>
+        <img id="foto" src="" alt="Foto compartida">
+    </div>
+
+    <script>
+        async function obtenerFoto() {
+            // 1. Obtener el ID de la foto desde la barra de direcciones de la pestaña abierta
+            const params = new URLSearchParams(window.location.search);
+            const idFoto = params.get('id');
+
+            const estadoTx = document.getElementById('estado');
+            const fotoImg = document.getElementById('foto');
+            const infoPrecio = document.getElementById('info-precio');
+
+            if (!idFoto) {
+                estadoTx.innerText = "Error: No se proporcionó un ID de foto válido en el link.";
+                estadoTx.className = "error";
+                return;
+            }
+
+            try {
+                // 2. Preguntar a tu servidor de Render por los datos de este ID específico
+                // Nota: Tu API en Render debe tener configurada una ruta GET para '/api/foto/:id' o similar
+                const respuesta = await fetch(`https://proyecto-mt.onrender.com/api/foto/${idFoto}`);
+                const data = await respuesta.json();
+
+                if (data.success && data.urlFoto) {
+                    // 3. Si todo está bien, mostramos el precio e inyectamos el enlace de ImgBB en la etiqueta <img>
+                    estadoTx.style.display = "none";
+                    
+                    if (data.precio) {
+                        infoPrecio.innerText = `Valor asignado: $${data.precio} USD`;
+                        infoPrecio.style.display = "block";
+                    }
+
+                    fotoImg.src = data.urlFoto;
+                    fotoImg.style.display = "block";
+                } else {
+                    estadoTx.innerText = "La foto no se encontró o ha expirado.";
+                    estadoTx.className = "error";
+                }
+            } catch (error) {
+                console.error(error);
+                estadoTx.innerText = "Hubo un error de conexión con el servidor de Render.";
+                estadoTx.className = "error";
+            }
+        }
+
+        // Ejecutar la función automáticamente cuando la persona entre a la página
+        obtenerFoto();
+    </script>
+</body>
+</html>
